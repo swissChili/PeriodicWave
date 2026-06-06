@@ -43,6 +43,7 @@ from periodicwave.utils import statistics
 from periodicwave.utils import utils
 from periodicwave.utils import writers
 from periodicwave.utils import jax_utils
+from periodicwave.utils import kfac_fix
 import jax
 from jax.experimental import multihost_utils
 import jax.numpy as jnp
@@ -282,8 +283,8 @@ def make_kfac_training_step(
     update. See the Step protocol for details.
   """
   mcmc_step = constants.pmap(mcmc_step, donate_argnums=1)
-  shared_mom = kfac_jax.utils.replicate_all_local_devices(jnp.zeros([]))
-  shared_damping = kfac_jax.utils.replicate_all_local_devices(
+  shared_mom = kfac_fix.replicate_all_local_devices(jnp.zeros([]))
+  shared_damping = kfac_fix.replicate_all_local_devices(
       jnp.asarray(damping))
   # Due to some KFAC cleverness related to donated buffers, need to do this
   # to make state resettable
@@ -361,9 +362,9 @@ def train(cfg: ml_collections.ConfigDict, writer_manager=None):
 
   # Generate atomic configurations for each walker
   batch_atoms = jnp.tile(atoms[None, ...], [device_batch_size, 1, 1])
-  batch_atoms = kfac_jax.utils.replicate_all_local_devices(batch_atoms)
+  batch_atoms = kfac_fix.replicate_all_local_devices(batch_atoms)
   batch_charges = jnp.tile(charges[None, ...], [device_batch_size, 1])
-  batch_charges = kfac_jax.utils.replicate_all_local_devices(batch_charges)
+  batch_charges = kfac_fix.replicate_all_local_devices(batch_charges)
 
   if cfg.debug.deterministic:
     seed = 42
@@ -435,7 +436,7 @@ def train(cfg: ml_collections.ConfigDict, writer_manager=None):
   prng_key, subkey = jax.random.split(prng_key)
   params = network.init(subkey)
 
-  params = kfac_jax.utils.replicate_all_local_devices(params)
+  params = kfac_fix.replicate_all_local_devices(params)
   signed_network = network.apply
   # Often just need log|psi(x)|.
   logabs_network = lambda *args, **kwargs: signed_network(*args, **kwargs)[1]
@@ -614,9 +615,9 @@ def train(cfg: ml_collections.ConfigDict, writer_manager=None):
     raise ValueError(f'Unknown optimizer: {optimizer}')
 
   if mcmc_width_ckpt is not None:
-    mcmc_width = kfac_jax.utils.replicate_all_local_devices(mcmc_width_ckpt[0])
+    mcmc_width = kfac_fix.replicate_all_local_devices(mcmc_width_ckpt[0])
   else:
-    mcmc_width = kfac_jax.utils.replicate_all_local_devices(
+    mcmc_width = kfac_fix.replicate_all_local_devices(
         jnp.asarray(cfg.mcmc.move_width))
 
   if t_init == 0: # MCMC burn in
